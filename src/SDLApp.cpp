@@ -30,7 +30,7 @@ int SDLApp::Initialize()
 
     window = std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)>(SDL_CreateWindow(this->m_Title.c_str(), 20, 20, this->m_WindowWidth, this->m_WindowHeight, SDL_WINDOW_SHOWN), SDL_DestroyWindow);
 
-    renderer = std::shared_ptr<SDL_Renderer>(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED), SDL_DestroyRenderer);
+    renderer = std::unique_ptr<SDL_Renderer, decltype(&SDL_DestroyRenderer)>(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED), SDL_DestroyRenderer);
 
     SDL_RenderSetScale(renderer.get(), 3, 3);
     return 0;
@@ -80,9 +80,9 @@ void SDLApp::Stop()
     this->isRunning = false;
 }
 
-std::shared_ptr<SDL_Renderer> SDLApp::GetRenderer()
+SDL_Renderer &SDLApp::GetRenderer()
 {
-    return this->renderer;
+    return *renderer;
 }
 
 SDLApp::~SDLApp()

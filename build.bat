@@ -1,1 +1,7 @@
-g++ -Ofast -mwindows ./src/*.cpp -o ./bin/prog.exe -I./include -IC:\mingw_sdl\include\SDL2 -IC:\mingw_sdl_ttf\include\SDL2 -IC:\mingw_sdl_image\include\SDL2 -LC:\mingw_sdl\lib -LC:\mingw_sdl_ttf\lib -LC:\mingw_sdl_image\lib -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf -lSDL2_image
+g++ --version
+
+g++ -std=c++17 -Ofast -mwindows main.cpp ./src/*.cpp -o ./bin/prog.exe -I./include -IC:\mingw_sdl\include\SDL2 -IC:\mingw_sdl_ttf\include\SDL2 -IC:\mingw_sdl_image\include\SDL2 -LC:\mingw_sdl\lib -LC:\mingw_sdl_ttf\lib -LC:\mingw_sdl_image\lib -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf -lSDL2_image
+
+REM g++ -std=c++17 -Wall -Weffc++ -Wextra -Wconversion -Wsign-conversion -Ofast -mwindows ./src/*.cpp -o ./bin/prog.exe -I./include -IC:\mingw_sdl\include\SDL2 -IC:\mingw_sdl_ttf\include\SDL2 -IC:\mingw_sdl_image\include\SDL2 -LC:\mingw_sdl\lib -LC:\mingw_sdl_ttf\lib -LC:\mingw_sdl_image\lib -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf -lSDL2_image
+
+REM g++ -Ofast -mwindows ./src/*.cpp -o ./bin/prog.exe -I./include -IC:\mingw_sdl\include\SDL2 -IC:\mingw_sdl_ttf\include\SDL2 -IC:\mingw_sdl_image\include\SDL2 -L"C:/mingw_sdl/lib" -lSDL2 -lSDL2main -lSDL2_ttf -lstdc++ -lgcc

@@ -1,7 +1,24 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <SDL.h>
 #include "LevelManager.hpp"
+#include <GameState.hpp>
 
 LevelManager::LevelManager()
 {
+    std::unique_ptr<char, decltype(&SDL_free)> path(SDL_GetBasePath(), SDL_free);
+    if (!path)
+    {
+        std::cerr << "Error getting base path: " << SDL_GetError() << std::endl;
+        SDL_Quit();
+    }
+
+    std::filesystem::path basePath = path.get();
+    std::filesystem::path finalPath = basePath / "levels.dat";
+    m_LevelsFilePath = finalPath.string();
+
+    std::cout << "Initialized levels.dat path: " << m_LevelsFilePath << std::endl;
     this->Initialize();
 }
 
@@ -11,132 +28,123 @@ LevelManager &LevelManager::Get()
     return instance;
 }
 
-Level *LevelManager::GetLevel(const unsigned int &levelIndex)
+Level *LevelManager::GetLevel(const unsigned int levelIndex)
 {
-    if (levelIndex > 10)
+    if (levelIndex >= m_Levels.size())
     {
         return nullptr;
     }
-    return m_Levels[levelIndex].get();
+
+    return &m_Levels[levelIndex];
 }
 
-void LevelManager::RenderLevel(const unsigned int &levelIndex)
+void AnimateTile(int &tileId, int salt)
 {
-    if (levelIndex >= m_Levels.size())
+    unsigned int mod = 1;
+    switch (tileId)
+    {
+    case StaticObject::FIRE_1:
+    // case StaticObject::WEED_1:
+    case StaticObject::WEED_1:
+    case MiscObject::DEATH_1:
+        mod = 4;
+        break;
+    case StaticObject::TROPHY_1:
+    case StaticObject::WATER_1:
+        mod = 5;
+        break;
+    default:
+        return;
+    }
+
+    tileId = tileId + ((salt + (SDL_GetTicks() / 120)) % mod);
+}
+
+void LevelManager::RenderLevel(const unsigned int currentLevel)
+{
+    if (currentLevel >= m_Levels.size())
         return;
 
-    m_Levels[levelIndex]->RenderLevel();
+    const Level &level = m_Levels[currentLevel];
+    int tileWidth = 16;
+    int tileHeight = 16;
+    for (int i = 0; i < level.level.size(); i++)
+    {
+        int o = offset / 16;
+        for (int j = o; j < std::min(o + 20 * 16, (int)level.level[i].size()); j++)
+        {
+            int tileId = level.level[i][j];
+            AnimateTile(tileId, j);
+            if (tileId > 0)
+            {
+                // render static tile.
+                SDL_Rect rect{16 * (j - o), 16 * (i + 1), 16, 16};
+                SDL_RenderCopy(&SDLApp::Get().GetRenderer(), &TileManager::Get().GetTextureById(tileId), nullptr, &rect);
+            }
+        }
+    }
+
+    // std::list<MonsterObject *>::iterator itr = this->enemyObjects.begin();
+
+    // for (itr = this->enemyObjects.begin(); itr != this->enemyObjects.end();)
+    // {
+    //     if ((*itr)->IsColliding())
+    //     {
+    //         delete *itr;
+    //         itr = this->enemyObjects.erase(itr);
+    //     }
+    //     else
+    //     {
+    //         (*itr)->UpdateFrame();
+    //         (*itr)->Render(offset);
+    //         ++itr;
+    //     }
+    // }
 }
 
 void LevelManager::Initialize()
 {
-    const int tileWidth = 16;
-    const int tileHeight = 16;
-    for (int i = 0; i < m_Levels.size(); i++)
+    try
     {
-        m_Levels[i] = std::make_unique<Level>();
+        this->LoadLevels();
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error during level initialization: " << e.what() << std::endl;
     }
 
-    this->LoadLevels();
-
-    int level = GameState::Get().getCurrentLevel();
-    int x = this->GetCurrentLevel()->GetPlayerStartX();
-    int y = this->GetCurrentLevel()->GetPlayerStartY();
-    GameState::Get().SetPlayerPos(x * 16, y * 16);
+    int r = this->GetCurrentLevel()->playerStartR;
+    int c = this->GetCurrentLevel()->playerStartC;
+    GameState::Get().SetPlayerPos(c * 16, r * 16);
 }
 
 void LevelManager::LoadLevels()
 {
-    std::ifstream file(m_LevelsFilePath);
+    std::cout << "Attempting to load level" << std::endl;
+
+    std::ifstream file(m_LevelsFilePath, std::ios::binary);
     if (!file.is_open())
     {
-        std::cerr << "Could not read level data" << std::endl;
-        std::exit(1);
+        throw std::runtime_error("Error: Could not open file for reading: " + m_LevelsFilePath + "\n");
     }
 
-    int level = 0;
+    m_Levels.clear();
 
-    std::vector<TileData> levelTiles;
-    std::vector<TileData> enemyObjects;
-    std::vector<std::pair<int, int>> movements;
-    TileData player;
+    uint64_t levelCount = 0;
+    file.read(reinterpret_cast<char *>(&levelCount), sizeof(levelCount));
 
-    std::string line;
-    while (level < 10 && std::getline(file, line))
+    if (!file.good() || levelCount == 0)
     {
-        if (line.empty() || (line.size() == 1 && line[0] == '/'))
+        throw std::runtime_error("There seems to be some issue with the file or the file does not contain any levels.\n");
+    }
+
+    m_Levels.resize(levelCount);
+    for (uint64_t i = 0; i < levelCount; ++i)
+    {
+        if (!m_Levels[i].load(file))
         {
-            continue;
-        }
-        else if (line[0] == '$')
-            break;
-        else if (line[0] == '@')
-        {
-            // ++level;
-        }
-        else if (line.size() == 2 && line[0] == '_' && line[1] == '_')
-        {
-            m_Levels[level++]->CreateLevel(levelTiles, enemyObjects, player, movements);
-            levelTiles.clear();
-            enemyObjects.clear();
-            std::cout << "Set Level: " << level << std::endl;
-            continue;
-        }
-        else if (line.size() == 2 && line[0] == '/' && line[1] == 'L')
-        {
-            while (std::getline(file, line))
-            {
-                if (line[0] == '$' || line[0] == '_')
-                    break;
-                std::stringstream ss(line);
-                int x, y, tileId;
-                char comma;
-                ss >> x >> comma >> y >> comma >> tileId;
-                levelTiles.push_back(TileData(x, y, tileId));
-            }
-        }
-        else if (line.size() == 2 && line[0] == '/' && line[1] == 'M')
-        {
-            uint8_t monsterCount, i = 0;
-            std::getline(file, line);
-            std::stringstream ss(line);
-            ss >> monsterCount;
-            while (i++ < monsterCount && std::getline(file, line))
-            {
-                if (line[0] == '_')
-                    break;
-                std::stringstream ss(line);
-                int x, y, tileId;
-                char comma;
-                ss >> x >> comma >> y >> comma >> tileId;
-                enemyObjects.push_back(TileData(x, y, tileId));
-            }
-        }
-        else if (line.size() == 2 && line[0] == '/' && line[1] == 'm')
-        {
-            std::getline(file, line);
-            std::stringstream ss(line);
-            int dx, dy;
-            while (std::getline(file, line))
-            {
-                if (line.size() >= 1 && line[0] == '_')
-                    break;
-                std::stringstream ss(line);
-                int x, y, tileId;
-                char comma;
-                ss >> dx >> comma >> dy;
-                movements.push_back({dx, dy});
-            }
-        }
-        else if (line.size() == 2 && line[0] == '/' && line[1] == 'P')
-        {
-            std::getline(file, line);
-            std::stringstream ss(line);
-            int playerX, playerY;
-            char comma;
-            ss >> playerX >> comma >> playerY;
-            player.x = playerX;
-            player.y = playerY;
+            throw std::runtime_error("Error: Failed to read level #" + std::to_string(i) + " from file. File may be corrupt.\n");
+            m_Levels.clear();
         }
     }
 
@@ -148,37 +156,79 @@ void LevelManager::NextLevel()
     GameState::Get().Reset();
     GameState::Get().NextLevel();
 
-    const int idx = GameState::Get().getCurrentLevel();
+    const int idx = GameState::Get().GetCurrentLevel();
 
-    const int x = m_Levels[idx]->GetPlayerStartX();
-    const int y = m_Levels[idx]->GetPlayerStartY();
+    if (idx >= m_Levels.size())
+    {
+        std::cout << "End of level reached" << std::endl;
+        GameState::Get().SaveGameState();
+        SDLApp::Get().Stop();
+        return;
+    }
 
-    GameState::Get().GetPlayer()->SetPlayerPos(x * 16, y * 16);
+    GameState::Get().GetPlayer().ResetJump();
+    GameState::Get().GetPlayer().ResetSpeed();
+    GameState::Get().GetPlayer().Reset();
+    GameState::Get()
+        .GetPlayer()
+        .SetPlayerPos(m_Levels[idx].playerStartC * 16, m_Levels[idx].playerStartR * 16);
+    ResetOffset();
 }
 
 void LevelManager::ResetPlayerPos()
 {
     Level *level = this->GetCurrentLevel();
-    const int x = level->GetPlayerStartX();
-    const int y = level->GetPlayerStartY();
-    GameState::Get().GetPlayer()->SetPlayerPos(x * 16, y * 16);
+    const int x = level->playerStartR;
+    const int y = level->playerStartC;
+    GameState::Get().GetPlayer().ResetJump();
+    GameState::Get().GetPlayer().ResetSpeed();
+    GameState::Get().GetPlayer().SetPlayerPos(y * 16, x * 16);
 }
 
 void LevelManager::ResetOffset()
 {
-    this->GetCurrentLevel()->SetOffset(0);
+    this->SetOffset(0);
 }
 
 Level *LevelManager::GetCurrentLevel()
 {
-    return this->m_Levels[GameState::Get().getCurrentLevel()].get();
+    int idx = GameState::Get().GetCurrentLevel();
+    if (idx < 0 || idx >= m_Levels.size())
+    {
+        return nullptr;
+    }
+
+    return &m_Levels[idx];
 }
 
 int LevelManager::GetCurrentOffset()
 {
-    return this->m_Levels[GameState::Get().getCurrentLevel()]->GetOffset();
+    // return m_Levels[GameState::Get().GetCurrentLevel()]->GetOffset();
+    return offset;
+}
+
+void LevelManager::SetPlayerX(int x)
+{
+    GameState::Get().GetPlayer().SetPlayerX(x);
+}
+
+void LevelManager::SetPlayerY(int y)
+{
+    GameState::Get().GetPlayer().SetPlayerY(y);
+}
+
+void LevelManager::SetPlayerPos(int x, int y)
+{
+    SetPlayerX(x);
+    SetPlayerY(y);
+}
+
+void LevelManager::SetOffset(int o)
+{
+    offset = o;
 }
 
 LevelManager::~LevelManager()
 {
+    std::cout << "LevelManager destructor called" << std::endl;
 }

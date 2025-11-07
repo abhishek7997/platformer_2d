@@ -1,4 +1,5 @@
 #include "GameState.hpp"
+#include "SDLApp.hpp"
 #include "LevelManager.hpp"
 
 /*
@@ -6,23 +7,23 @@ IGameObject
 */
 void IGameObject::Render(const int &offset)
 {
-    std::shared_ptr<SDL_Texture> texture = TileManager::Get().GetTileById(this->tileId);
-    if (!texture)
+    SDL_Texture *texture = &TileManager::Get().GetTextureById(this->tileId);
+    if (texture == nullptr)
     {
         SDL_Log("Could not query texture :( %s", SDL_GetError());
         return;
     }
-    SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
 
     SDL_Rect dst = {this->rect.x - offset, this->rect.y + 16, this->rect.w, this->rect.h};
 
-    SDL_RenderCopy(SDLApp::Get().GetRenderer().get(), texture.get(), NULL, &dst);
+    SDL_RenderCopy(&SDLApp::Get().GetRenderer(), texture, nullptr, &dst);
 
     // Draw the bounding boxes of the texture
     // if (this->tileId != 0)
     // {
-    //     SDL_SetRenderDrawColor(renderer, 0xaa, 0x0, 0xff, 0xff);
-    //     SDL_RenderDrawRect(renderer, &dst);
+    //     SDL_SetRenderDrawColor(&SDLApp::Get().GetRenderer(), 0xaa, 0x0, 0xff, 0xff);
+    //     SDL_RenderDrawRect(&SDLApp::Get().GetRenderer(), &dst);
     // }
 };
 
@@ -43,79 +44,24 @@ int IGameObject::GetTileId()
     return this->tileId;
 }
 
-SDL_bool IGameObject::IsColliding(const SDL_Rect *other)
+SDL_bool IGameObject::IsColliding(const SDL_Rect *other) const
 {
     return SDL_HasIntersection(&(this->rect), other);
 }
 
-SDL_Rect &IGameObject::GetRectangle()
+const SDL_Rect &IGameObject::GetRectangle() const
 {
-    return this->rect;
+    return rect;
 }
 
 void IGameObject::SetTileId(const unsigned int &tileId)
 {
     if (tileId > 157)
     {
-        this->tileId = 0;
+        throw std::invalid_argument("TileId is invalid. Must be less than 158.");
     }
-    else
-    {
-        this->tileId = tileId;
-    }
+    this->tileId = tileId;
     this->startTileId = tileId;
-}
-
-/*
-GameObject
-*/
-GameObject::GameObject(const int &x, const int &y, const int &tileId)
-{
-    int tileWidth, tileHeight;
-    std::shared_ptr<SDL_Texture> texture = TileManager::Get().GetTileById(tileId);
-    if (SDL_QueryTexture(texture.get(), NULL, NULL, &tileWidth, &tileHeight) < 0)
-    {
-        if (!texture)
-        {
-            SDL_Log("Texture is null\n");
-        }
-        SDL_Log("Could not query texture in GameObject(): %s", SDL_GetError());
-        return;
-    }
-    this->SetRectPosition(x, y);
-    this->SetRectDimension(tileWidth, tileHeight);
-    this->SetTileId(tileId);
-}
-
-void GameObject::UpdateFrame(const int &salt)
-{
-    unsigned int mod = 1;
-    switch (this->startTileId)
-    {
-    case StaticObject::FIRE_1:
-    case StaticObject::WEED_1:
-    case MiscObject::DEATH_1:
-        mod = 4;
-        break;
-    case StaticObject::TROPHY_1:
-    case StaticObject::WATER_1:
-        mod = 5;
-        break;
-    default:
-        return;
-    }
-
-    this->tileId = this->startTileId + ((salt + (SDL_GetTicks() / 120)) % mod);
-}
-
-void GameObject::SetPosition(const int &x, const int &y)
-{
-    this->rect.x = x;
-    this->rect.y = y;
-}
-
-GameObject::~GameObject()
-{
 }
 
 /*
@@ -124,12 +70,11 @@ MonsterObject
 MonsterObject::MonsterObject(const int x, const int y, const int &tileId)
 {
     int tileWidth, tileHeight;
-    std::shared_ptr<SDL_Texture> texture = TileManager::Get().GetTileById(tileId);
+    SDL_Texture *texture = &TileManager::Get().GetTextureById(tileId);
 
-    if (SDL_QueryTexture(texture.get(), NULL, NULL, &tileWidth, &tileHeight) < 0)
+    if (SDL_QueryTexture(texture, nullptr, nullptr, &tileWidth, &tileHeight) < 0)
     {
-        SDL_Log("Could not query texture in MonsterObject(): %s", SDL_GetError());
-        return;
+        throw std::runtime_error("Could not query texture in MonsterObject(int, int, int): " + std::string(SDL_GetError()));
     }
 
     this->startX = x;
@@ -146,7 +91,7 @@ MonsterObject::MonsterObject(const int x, const int y, const int &tileId)
 
 bool MonsterObject::InView()
 {
-    const int playerOff = GameState::Get().GetPlayer()->GetRectangle().x / (20 * 16);
+    const int playerOff = GameState::Get().GetPlayer().GetRectangle().x / (20 * 16);
     const int monsOff = this->x / (20 * 16);
 
     return ((this->GetRectangle().x >= 0) && (this->GetRectangle().x <= SCREENOFFSET::FOUR) && playerOff == monsOff);
@@ -194,7 +139,7 @@ void MonsterObject::UpdateFrame()
 
 int MonsterObject::GetDirection()
 {
-    const int playerX = GameState::Get().GetPlayer()->GetRectangle().x;
+    const int playerX = GameState::Get().GetPlayer().GetRectangle().x;
     if (playerX < this->x)
         return DIR::LEFT;
     return DIR::RIGHT;
@@ -218,7 +163,7 @@ void MonsterObject::FireBullet()
             break;
         }
 
-        std::unique_ptr<EnemyBullet> e_bullet = std::unique_ptr<EnemyBullet>(new EnemyBullet(this->GetDirection(), x, this->y + 8));
+        std::unique_ptr<EnemyBullet> e_bullet = std::make_unique<EnemyBullet>(this->GetDirection(), x, this->y + 8);
         EnemyBullet::AddBullet(std::move(e_bullet));
     }
 }
@@ -231,20 +176,17 @@ void MonsterObject::SetMovements(const std::vector<std::pair<int, int>> movement
 
 SDL_bool MonsterObject::IsColliding()
 {
-    LevelManager &levelManager = LevelManager::Get();
-    Level *level = levelManager.GetCurrentLevel();
-
     int currX = this->rect.x;
     int currY = this->rect.y;
     int cellX = currX / 16;
     int cellY = currY / 16;
     int tileIndex = 0;
-    std::shared_ptr<Player> player = GameState::Get().GetPlayer();
-    const SDL_Rect &playerRect = player->GetRectangle();
+    Player &player = GameState::Get().GetPlayer();
+    const SDL_Rect &playerRect = player.GetRectangle();
 
-    if (SDL_HasIntersection(&this->rect, &playerRect) && !player->IsDead())
+    if (SDL_HasIntersection(&this->rect, &playerRect) && !player.IsDead())
     {
-        player->PlayDead();
+        player.PlayDead();
         return SDL_TRUE;
     }
 
@@ -262,16 +204,16 @@ SDL_bool MonsterObject::IsColliding()
     //     }
     // }
 
-    if (player->FiredBullet())
+    if (player.FiredBullet())
     {
-        const SDL_Rect *bulletRect = player->GetBulletRect();
+        const SDL_Rect *bulletRect = player.GetBulletRect();
         if (bulletRect == nullptr)
         {
             return SDL_FALSE;
         }
         if (SDL_HasIntersection(&this->rect, bulletRect))
         {
-            player->DestroyBullet();
+            player.DestroyBullet();
             return SDL_TRUE;
         }
     }
@@ -381,14 +323,14 @@ void EnemyBullet::RenderBullets()
 
 void EnemyBullet::CheckPlayerCollision()
 {
-    std::shared_ptr<Player> player = GameState::Get().GetPlayer();
-    SDL_Rect playerRect = player.get()->GetRectangle();
+    Player &player = GameState::Get().GetPlayer();
+    SDL_Rect playerRect = player.GetRectangle();
 
     for (auto it = bullets.begin(); it != bullets.end();)
     {
         if (*it != nullptr && SDL_HasIntersection(&(*it).get()->GetRectangle(), &playerRect))
         {
-            player.get()->PlayDead();
+            player.PlayDead();
             it = bullets.erase(it);
         }
         else
@@ -404,30 +346,25 @@ EnemyBullet EnemyBullet::instance;
 /*
 Player
 */
-Player::Player()
+Player::Player() : x(15), y(5), bullet(nullptr)
 {
-    this->x = 15;
-    this->y = 5;
     this->SetRectDimension(16, 16);
     this->SetRectPosition(x, y);
     this->SetTileId(PlayerObject::PLAYER_FRONT);
-    this->bullet = nullptr;
 }
 
-Player::Player(const int &x, const int &y)
+Player::Player(const int &x, const int &y) : x(x), y(y), bullet(nullptr)
 {
-    this->x = x;
-    this->y = y;
     this->SetRectDimension(16, 16);
     this->SetRectPosition(this->x, this->y);
     this->SetTileId(PlayerObject::PLAYER_FRONT);
-    this->bullet = nullptr;
 }
 
 void Player::MoveLeft()
 {
-    if (!this->canMoveLeft() || this->x - this->dx < 1)
+    if (!this->CanMoveLeft() || this->x - this->dx < 1)
     {
+        std::cout << "Cannot move left" << std::endl;
         return;
     }
 
@@ -439,8 +376,9 @@ void Player::MoveLeft()
 
 void Player::MoveRight()
 {
-    if (!this->canMoveRight() || this->x + this->dx > 99 * 16)
+    if (!this->CanMoveRight() || this->x + this->dx > 99 * 16)
     {
+        std::cout << "Cannot move right" << std::endl;
         return;
     }
 
@@ -452,8 +390,9 @@ void Player::MoveRight()
 
 void Player::MoveUp()
 {
-    if (!this->canMoveUp() || this->y - this->dy < 1)
+    if (!this->CanMoveUp() || this->y - this->dy < 1)
     {
+        std::cout << "Cannot move up" << std::endl;
         return;
     }
 
@@ -465,8 +404,9 @@ void Player::MoveUp()
 
 void Player::MoveDown()
 {
-    if (!this->canMoveDown() || this->y + this->dy > 99 * 16)
+    if (!this->CanMoveDown() || this->y + this->dy > 99 * 16)
     {
+        std::cout << "Cannot move down" << std::endl;
         return;
     }
 
@@ -481,10 +421,15 @@ bool Player::IsGrounded()
     return this->isGrounded;
 }
 
-bool Player::IsColliding(const int &px, const int &py)
+bool Player::IsColliding(int px, int py)
 {
     GameState &gameState = GameState::Get();
     Level *level = LevelManager::Get().GetCurrentLevel();
+
+    if (level == nullptr)
+    {
+        return true;
+    }
 
     int gridX = py / 16;
     int gridY = px / 16;
@@ -495,8 +440,7 @@ bool Player::IsColliding(const int &px, const int &py)
         return true;
     }
 
-    SDL_Rect *rect = level->QueryCell(gridX, gridY);
-    int tileId = level->GetTileId(gridX, gridY);
+    const int tileId = level->level[gridX][gridY];
 
     switch (tileId)
     {
@@ -590,11 +534,11 @@ bool Player::IsColliding(const int &px, const int &py)
 void Player::IsColliding()
 {
     this->collision_point[0] = this->IsColliding(this->rect.x + 3, this->rect.y - 1);   // Top left
-    this->collision_point[1] = this->IsColliding(this->rect.x + 11, this->rect.y - 1);  // Top right
-    this->collision_point[2] = this->IsColliding(this->rect.x + 14, this->rect.y + 3);  // Right side above mid
-    this->collision_point[3] = this->IsColliding(this->rect.x + 14, this->rect.y + 13); // Right side below mid
-    this->collision_point[4] = this->IsColliding(this->rect.x + 11, this->rect.y + 17); // Right foot
-    this->collision_point[5] = this->IsColliding(this->rect.x + 3, this->rect.y + 17);  // Left foot
+    this->collision_point[1] = this->IsColliding(this->rect.x + 10, this->rect.y - 1);  // Top right
+    this->collision_point[2] = this->IsColliding(this->rect.x + 12, this->rect.y + 3);  // Right side above mid
+    this->collision_point[3] = this->IsColliding(this->rect.x + 12, this->rect.y + 13); // Right side below mid
+    this->collision_point[4] = this->IsColliding(this->rect.x + 10, this->rect.y + 16); // Right foot
+    this->collision_point[5] = this->IsColliding(this->rect.x + 1, this->rect.y + 16);  // Left foot
     this->collision_point[6] = this->IsColliding(this->rect.x - 1, this->rect.y + 13);  // Left side below mid
     this->collision_point[7] = this->IsColliding(this->rect.x - 1, this->rect.y + 3);   // Left side above mid
 
@@ -606,6 +550,7 @@ void Player::IsColliding()
         if (align)
         {
             this->y = (align < 8) ? this->y - align : this->y + 16 - align;
+            ResetJump();
         }
     }
 }
@@ -619,7 +564,7 @@ void Player::Gravity()
     {
         this->jumpHeight += gravity;
         this->y += jumpHeight + gravity;
-        if (this->jumpHeight > 0.0 || !canMoveUp())
+        if (this->jumpHeight > 0.0 || !CanMoveUp())
         {
             this->ResetJump();
         }
@@ -644,8 +589,12 @@ bool Player::JumpState()
 
 void Player::Jump()
 {
-    if (!(this->IsGrounded() && this->canMoveUp()))
+    if (!(this->IsGrounded() && this->CanMoveUp()))
+    {
+        std::cout << std::boolalpha;
+        std::cout << "Cannot move up: " << this->IsGrounded() << ", " << this->CanMoveUp() << std ::endl;
         return;
+    }
     if (this->jumpTimer - this->lastJump > 100)
     {
         this->inJump = true;
@@ -684,22 +633,22 @@ void Player::SetDown()
     this->currDir = DIR::DOWN;
 }
 
-bool Player::canMoveDown()
+bool Player::CanMoveDown()
 {
     return !(this->collision_point[4] && this->collision_point[5]) && !this->isDead;
 }
 
-bool Player::canMoveUp()
+bool Player::CanMoveUp()
 {
     return !(this->collision_point[0] || this->collision_point[1]) && !this->isDead;
 }
 
-bool Player::canMoveLeft()
+bool Player::CanMoveLeft()
 {
     return !(this->collision_point[6] || this->collision_point[7]) && !this->isDead;
 }
 
-bool Player::canMoveRight()
+bool Player::CanMoveRight()
 {
     return !(this->collision_point[2] || this->collision_point[3]) && !this->isDead;
 }
@@ -724,6 +673,26 @@ void Player::ResetSpeed()
 {
     this->dx = 2;
     this->dy = 2;
+}
+
+void Player::Reset()
+{
+    currDir = DIR::UNSET;
+
+    isGrounded = false;
+    climb = false;
+    isDead = false;
+    shoot = false;
+    inJump = false;
+    collision_point[8] = {true};
+
+    player_tick = 0;
+    dead_timer = 70;
+
+    jumpHeight = -6.5;
+    jumpTimer = 0.0;
+    lastJump = 0.0;
+    gravity = 0.5;
 }
 
 void Player::UpdateFrame()
@@ -787,19 +756,19 @@ void Player::UpdateFrame()
     }
 }
 
-void Player::SetPlayerX(const int &x)
+void Player::SetPlayerX(int x)
 {
     this->x = x;
     this->SetRectPosition(this->x, this->y);
 }
 
-void Player::SetPlayerY(const int &y)
+void Player::SetPlayerY(int y)
 {
     this->y = y;
     this->SetRectPosition(this->x, this->y);
 }
 
-void Player::SetPlayerPos(const int &x, const int &y)
+void Player::SetPlayerPos(int x, int y)
 {
     this->x = x;
     this->y = y;

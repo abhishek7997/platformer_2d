@@ -4,37 +4,40 @@ DigitDisplay::DigitDisplay()
 {
 }
 
-void DigitDisplay::RenderText(const int &x, int num)
+void DigitDisplay::RenderText(int x, int num)
 {
     if (num > 99999)
     {
         num = 99999;
     }
-
-    std::shared_ptr<SDL_Renderer> renderer = SDLApp::Get().GetRenderer();
-    std::string str = std::to_string(num);
-    std::shared_ptr<SDL_Texture> texture;
-    SDL_Rect dst;
-
-    for (int i = 0; i < str.size(); i++)
+    else if (num < 0)
     {
-        char c = str[i];
-        texture = GetDigitTexture((int)(c)-48);
-        SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
+        num = 0;
+    }
 
-        dst = {x + i * this->digitWidth, 0, digitWidth, digitHeight};
+    SDL_Renderer *renderer = &SDLApp::Get().GetRenderer();
+    std::string str = std::to_string(num);
 
-        SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+    for (size_t i = 0; i < str.size(); i++)
+    {
+        char c = str.at(i);
+        SDL_Texture *texture = &GetDigitTexture(static_cast<unsigned int>(c - '0'));
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+
+        SDL_Rect dst = {x + static_cast<int>(i) * this->digitWidth, 0, digitWidth, digitHeight};
+
+        SDL_RenderCopy(renderer, texture, NULL, &dst);
     }
 }
 
-std::shared_ptr<SDL_Texture> DigitDisplay::GetDigitTexture(unsigned int digit)
+SDL_Texture &DigitDisplay::GetDigitTexture(unsigned int digit)
 {
     if (digit > 9)
     {
-        digit = 9;
+        throw std::invalid_argument("Attempted to render invalid digit.");
     }
-    return TileManager::Get().GetTileById(MiscObject::DIGIT_ZERO + digit);
+    // return TileManager::Get().GetTextureById(MiscObject::DIGIT_ZERO + digit);
+    return TileManager::Get().GetTextureById(77 + digit);
 }
 
 DigitDisplay::~DigitDisplay()

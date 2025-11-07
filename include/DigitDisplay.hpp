@@ -10,8 +10,8 @@ class DigitDisplay
 {
 public:
     DigitDisplay();
-    void RenderText(const int &x, int num);
-    std::shared_ptr<SDL_Texture> GetDigitTexture(unsigned int digit);
+    void RenderText(int x, int num);
+    SDL_Texture &GetDigitTexture(unsigned int digit);
     ~DigitDisplay();
 
 private:
