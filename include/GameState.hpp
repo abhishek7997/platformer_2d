@@ -1,6 +1,8 @@
 #pragma once
 
 #include <SDL.h>
+#include <fstream>
+#include "LevelManager.hpp"
 #include "GameObject.hpp"
 #include "DigitDisplay.hpp"
 
@@ -9,15 +11,15 @@ class GameState
 public:
     static GameState &Get();
     void ApplyGravity();
-    std::shared_ptr<Player> GetPlayer();
+    Player &GetPlayer();
     void ToggleJetpack();
     bool IsJetpackActivated();
-    int getCurrentLevel();
-    void AddScore(const int &score);
+    int GetCurrentLevel();
+    void AddScore(const int score);
     void RenderStates();
-    void SetGotTrophy(const bool &status);
-    void SetGotJetpack(const bool &status);
-    void SetGotGun(const bool &status);
+    void SetGotTrophy(bool status);
+    void SetGotJetpack(bool status);
+    void SetGotGun(bool status);
     bool GotTrophy();
     bool GotJetpack();
     bool GotGun();
@@ -29,8 +31,11 @@ public:
     void DecreaseLives();
     void ConsumeJetpack();
     void Update();
-    int GetCurrentLevelOffset();
+    // void ResetPlayer();
+    // int GetCurrentLevelOffset();
     unsigned int GetTicks();
+    void UpdateOffset(LevelManager &levelManager);
+    void SaveGameState();
     ~GameState();
     GameState(const GameState &) = delete;
     // GameState &operator=(const GameState &) = delete;
@@ -55,7 +60,6 @@ private:
 
     unsigned int ticks;
 
-    std::shared_ptr<Player> player;
-    std::shared_ptr<SDL_Renderer> renderer;
+    Player *player;
     std::unique_ptr<DigitDisplay> digitDisplay;
 };

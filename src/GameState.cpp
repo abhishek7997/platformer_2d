@@ -1,7 +1,7 @@
 
 #include "GameState.hpp"
 
-GameState::GameState() : ticks(0), player(new Player()), renderer(SDLApp::Get().GetRenderer()), digitDisplay(new DigitDisplay())
+GameState::GameState() : ticks(0), player(new Player()), digitDisplay(std::make_unique<DigitDisplay>())
 {
 }
 
@@ -11,7 +11,7 @@ GameState &GameState::Get()
     return instance;
 }
 
-void GameState::AddScore(const int &score)
+void GameState::AddScore(int score)
 {
     this->score += score;
 }
@@ -23,19 +23,26 @@ void GameState::ApplyGravity()
     this->player->Gravity();
 }
 
-std::shared_ptr<Player> GameState::GetPlayer()
+Player &GameState::GetPlayer()
 {
-    return this->player;
+    return *(this->player);
+}
+
+void GameState::SetPlayerPos(const int &x, const int &y)
+{
+    this->player->SetPlayerPos(x, y);
 }
 
 void GameState::ToggleJetpack()
 {
     if (this->jetpackFuel == 0)
     {
+        this->player->ResetJump();
         return;
     }
     if (jetpackActivated)
     {
+        this->player->ResetJump();
         this->player->ResetSpeed();
     }
     else
@@ -63,7 +70,7 @@ bool GameState::IsJetpackActivated()
     return jetpackActivated;
 }
 
-int GameState::getCurrentLevel()
+int GameState::GetCurrentLevel()
 {
     return currentLevel;
 }
@@ -71,98 +78,101 @@ int GameState::getCurrentLevel()
 void GameState::RenderStates()
 {
     // Display SCORES
-    std::shared_ptr<SDL_Texture> texture = TileManager::Get().GetTileById(MiscObject::TEXT_SCORE);
+    SDL_Renderer *renderer = &SDLApp::Get().GetRenderer();
+    SDL_Texture *texture = &TileManager::Get().GetTextureById(MiscObject::TEXT_SCORE);
     SDL_Rect dst = {0, 0, 62, 11};
-    SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-    SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderCopy(renderer, texture, nullptr, &dst);
 
     digitDisplay->RenderText(63, this->score);
 
     // Display Current level
-    texture = TileManager::Get().GetTileById(MiscObject::TEXT_LEVEL);
+    texture = &TileManager::Get().GetTextureById(MiscObject::TEXT_LEVEL);
     int levelTextOffset = 62 + 5 * 8 + 8;
     dst = {levelTextOffset, 0, 62, 11};
-    SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-    SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderCopy(renderer, texture, nullptr, &dst);
 
-    digitDisplay->RenderText(levelTextOffset + 62, this->currentLevel + 1);
+    digitDisplay->RenderText(levelTextOffset + 62 + 8, this->currentLevel + 1);
 
-    // Display number of lives left
-    texture = TileManager::Get().GetTileById(MiscObject::TEXT_LIVES);
+    // Display LIVES text
+    texture = &TileManager::Get().GetTextureById(MiscObject::TEXT_LIVES);
     int livesTextOffset = levelTextOffset + 62 + 8 * 3;
 
     dst = {livesTextOffset, 0, 62, 11};
 
-    SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-    SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderCopy(renderer, texture, nullptr, &dst);
 
+    // Display number of lives left
     for (int i = 0; i < this->lives; i++)
     {
         dst = {livesTextOffset + 62 + i * 17, 0, 17, 12};
-        texture = TileManager::Get().GetTileById(MiscObject::LIFE_UNIT);
-        SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-        SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+        texture = &TileManager::Get().GetTextureById(MiscObject::LIFE_UNIT);
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderCopy(renderer, texture, nullptr, &dst);
     }
 
     // Display jetpack
     if (gotJetpack)
     {
-        texture = TileManager::Get().GetTileById(MiscObject::TEXT_JETPACK);
+        texture = &TileManager::Get().GetTextureById(MiscObject::TEXT_JETPACK);
         dst = {0, 185, 62, 11};
-        SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-        SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderCopy(renderer, texture, nullptr, &dst);
 
         // Display jetpack meter
-        texture = TileManager::Get().GetTileById(MiscObject::JETPACK_METER);
+        // texture = &TileManager::Get().GetTextureById(MiscObject::JETPACK_METER);
         dst = {62 + 8, 185, 130, 12};
-        SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-        SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+        // SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        // SDL_RenderCopy(renderer, texture, nullptr, &dst);
+        SDL_RenderDrawRect(renderer, &dst);
 
         // Display jetpack units
-        texture = TileManager::Get().GetTileById(MiscObject::JETPACK_UNIT);
+        texture = &TileManager::Get().GetTextureById(MiscObject::JETPACK_UNIT);
         for (int i = 0; i < jetpackFuel; i++)
         {
             dst = {74 + 2 * i, 189, 6, 4};
-            SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-            SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+            SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+            SDL_RenderCopy(renderer, texture, nullptr, &dst);
         }
     }
 
     // Display gun if accquired
     if (gotGun)
     {
-        texture = TileManager::Get().GetTileById(MiscObject::TEXT_GUN);
+        texture = &TileManager::Get().GetTextureById(MiscObject::TEXT_GUN);
         dst = {62 + 8 + 185, 185, 62, 11};
-        SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-        SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderCopy(renderer, texture, nullptr, &dst);
 
-        texture = TileManager::Get().GetTileById(StaticObject::GUN);
+        texture = &TileManager::Get().GetTextureById(StaticObject::GUN);
         dst = {62 + 8 + 185 + 62 + 8, 185, 62, 11};
-        SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-        SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderCopy(renderer, texture, nullptr, &dst);
     }
 
     // Display Go thru the door text
     if (gotTrophy)
     {
-        texture = TileManager::Get().GetTileById(MiscObject::TEXT_CANEXIT);
+        texture = &TileManager::Get().GetTextureById(MiscObject::TEXT_CANEXIT);
         dst = {62 + 8, 185 + 16, 176, 14};
-        SDL_SetTextureBlendMode(texture.get(), SDL_BLENDMODE_BLEND);
-        SDL_RenderCopy(renderer.get(), texture.get(), NULL, &dst);
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderCopy(renderer, texture, nullptr, &dst);
     }
 }
 
-void GameState::SetGotTrophy(const bool &status)
+void GameState::SetGotTrophy(bool status)
 {
     this->gotTrophy = status;
 }
 
-void GameState::SetGotJetpack(const bool &status)
+void GameState::SetGotJetpack(bool status)
 {
     this->gotJetpack = status;
 }
 
-void GameState::SetGotGun(const bool &status)
+void GameState::SetGotGun(bool status)
 {
     this->gotGun = status;
 }
@@ -190,31 +200,26 @@ void GameState::Reset()
     this->gotTrophy = false;
     this->canClimb = false;
     this->gotGun = false;
+    this->jetpackFuel = 60;
 }
 
 void GameState::DecreaseLives()
 {
     --(this->lives);
+    if (this->lives == 0)
+    {
+        std::cout << "Lives set to 0. Resetting...\n";
+        this->lives = 3;
+        this->currentLevel = 0;
+        this->score = 0;
+        Reset();
+        LevelManager::Get().LoadLevels();
+    }
 }
 
 void GameState::NextLevel()
 {
-    this->currentLevel = std::min(9, this->currentLevel + 1);
-}
-
-void GameState::SetPlayerX(const int &x)
-{
-    this->player->SetPlayerX(x);
-}
-
-void GameState::SetPlayerY(const int &y)
-{
-    this->player->SetPlayerY(y);
-}
-
-void GameState::SetPlayerPos(const int &x, const int &y)
-{
-    this->player->SetPlayerPos(x, y);
+    this->currentLevel = this->currentLevel + 1;
 }
 
 void GameState::Update()
@@ -225,6 +230,89 @@ void GameState::Update()
 unsigned int GameState::GetTicks()
 {
     return this->ticks;
+}
+
+void GameState::UpdateOffset(LevelManager &levelManager)
+{
+    if (this->GetPlayer().GetDirection() == DIR::RIGHT)
+    {
+        if (this->GetPlayer().GetRectangle().x > SCREENOFFSET::FIVE)
+        {
+            levelManager.SetOffset(SCREENOFFSET::FIVE);
+        }
+        else if (this->GetPlayer().GetRectangle().x > SCREENOFFSET::FOUR)
+        {
+            levelManager.SetOffset(SCREENOFFSET::FOUR);
+        }
+        else if (this->GetPlayer().GetRectangle().x > SCREENOFFSET::THREE)
+        {
+            levelManager.SetOffset(SCREENOFFSET::THREE);
+        }
+        else if (this->GetPlayer().GetRectangle().x > SCREENOFFSET::TWO)
+        {
+            levelManager.SetOffset(SCREENOFFSET::TWO);
+        }
+        else if (this->GetPlayer().GetRectangle().x > SCREENOFFSET::ONE)
+        {
+            levelManager.SetOffset(SCREENOFFSET::ONE);
+        }
+    }
+    else if (this->GetPlayer().GetDirection() == DIR::LEFT)
+    {
+        if (this->GetPlayer().GetRectangle().x < SCREENOFFSET::ONE)
+        {
+            levelManager.SetOffset(SCREENOFFSET::ZERO);
+        }
+        else if (this->GetPlayer().GetRectangle().x < SCREENOFFSET::TWO)
+        {
+            levelManager.SetOffset(SCREENOFFSET::ONE);
+        }
+        else if (this->GetPlayer().GetRectangle().x < SCREENOFFSET::THREE)
+        {
+            levelManager.SetOffset(SCREENOFFSET::TWO);
+        }
+        else if (this->GetPlayer().GetRectangle().x < SCREENOFFSET::FOUR)
+        {
+            levelManager.SetOffset(SCREENOFFSET::THREE);
+        }
+        else if (this->GetPlayer().GetRectangle().x < SCREENOFFSET::FIVE)
+        {
+            levelManager.SetOffset(SCREENOFFSET::FOUR);
+        }
+    }
+}
+
+void GameState::SaveGameState()
+{
+    try
+    {
+        std::unique_ptr<char, decltype(&SDL_free)> path(SDL_GetBasePath(), SDL_free);
+        if (!path)
+        {
+            std::cerr << "Error getting base path: " << SDL_GetError() << std::endl;
+            throw std::runtime_error("Error getting base path: " + std::string(SDL_GetError()));
+        }
+        const std::string scores_path = (std::filesystem::path(path.get()) / "scores.dat").string();
+        std::ofstream file(scores_path);
+        if (file.is_open())
+        {
+            std::time_t now = std::time(0);
+            std::tm *localTime = std::localtime(&now);
+
+            // Format date and time
+            char buffer[100];
+            std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", localTime);
+
+            file << "completed_date=" << buffer << "\n";
+            file << "score=" << this->score << "\n";
+            file << "lives=" << this->lives << "\n";
+            file.close();
+        }
+    }
+    catch (std::exception &e)
+    {
+        std::cerr << "Error saving game state: " << e.what() << std::endl;
+    }
 }
 
 GameState::~GameState()

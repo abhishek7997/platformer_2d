@@ -15,24 +15,14 @@ public:
     void SetRectPosition(const int &x, const int &y);
     void SetRectDimension(const int &w, const int &h);
     int GetTileId();
-    SDL_bool IsColliding(const SDL_Rect *other);
-    SDL_Rect &GetRectangle();
+    SDL_bool IsColliding(const SDL_Rect *other) const;
+    const SDL_Rect &GetRectangle() const;
     void SetTileId(const unsigned int &tileId);
 
 protected:
     SDL_Rect rect;
     int tileId;
     int startTileId;
-};
-
-class GameObject : public IGameObject
-{
-public:
-    GameObject() = delete;
-    GameObject(const int &x, const int &y, const int &tileId);
-    void SetPosition(const int &x, const int &y);
-    void UpdateFrame(const int &salt);
-    ~GameObject();
 };
 
 class EnemyBullet : public IGameObject
@@ -106,7 +96,7 @@ public:
     void MoveUp();
     void MoveDown();
     bool IsGrounded();
-    bool IsColliding(const int &x, const int &y);
+    bool IsColliding(int x, int y);
     void IsColliding();
     void Gravity();
     void GetJumpTime();
@@ -118,20 +108,21 @@ public:
     void SetUp();
     void SetDown();
     int GetDirection();
-    bool canMoveDown();
-    bool canMoveUp();
-    bool canMoveLeft();
-    bool canMoveRight();
+    bool CanMoveDown();
+    bool CanMoveUp();
+    bool CanMoveLeft();
+    bool CanMoveRight();
     void PrintRectCoordinates();
     void IncreaseSpeed();
     void ResetSpeed();
     void UpdateFrame();
-    void SetPlayerX(const int &x);
-    void SetPlayerY(const int &y);
-    void SetPlayerPos(const int &x, const int &y);
+    void SetPlayerX(int x);
+    void SetPlayerY(int y);
+    void SetPlayerPos(int x, int y);
     void PlayDead();
     bool FiredBullet();
     void DestroyBullet();
+    void Reset();
     bool IsDead();
     const SDL_Rect *GetBulletRect()
     {
@@ -145,25 +136,24 @@ public:
 
 private:
     int x, y;
-    double gravity = 0.5;
     int dx = 2;
     int dy = 2;
     int currDir = DIR::UNSET;
-    bool can_move_left = true;
-    bool can_move_right = true;
-    bool can_move_up = true;
-    bool can_move_down = true;
+
     bool isGrounded = false;
     bool climb = false;
     bool isDead = false;
     bool shoot = false;
+    bool inJump = false;
+    bool collision_point[8] = {true};
 
     uint32_t player_tick = 0;
     uint32_t dead_timer = 70;
-    bool inJump = false;
+
     double jumpHeight = -6.5;
     double jumpTimer = 0.0;
     double lastJump = 0.0;
-    bool collision_point[8] = {true};
+    double gravity = 0.5;
+
     std::unique_ptr<Bullet> bullet;
 };
