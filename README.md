@@ -1,6 +1,6 @@
 # Platformer C++ SDL
 
-Implementation of a simple 2D platform game using C++ 11 and SDL 2.0
+Implementation of a simple 2D platform game using C++ 11 and SDL 2.0.
 
 ## Overview
 
@@ -8,6 +8,10 @@ This project is a single-player 2D platformer implemented in C++ using the SDL l
 
 - Compiler used: MinGW g++ 6.3.0
 - C++ version: C++ 11
+
+## Preview
+
+![prog](https://github.com/user-attachments/assets/9fbf5451-1cd1-44d2-98c8-8b514d3f2a25)
 
 ## Getting started
 
